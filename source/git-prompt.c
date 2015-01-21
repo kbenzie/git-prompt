@@ -23,13 +23,17 @@ enum gp_error_t {
 // TODO: Prefix
 // TODO: Suffix
 // TODO: Separator
+
 // TODO: Branch
+
+// TODO: Clean
+
 // TODO: Staged
+// TODO: Untracked
 // TODO: Conflicts
+
 // TODO: Behind
 // TODO: Ahead
-// TODO: Untracked
-// TODO: Clean
 
 int main(int argc, char *argv[]) {
   // TODO: Handle arguments
@@ -78,38 +82,41 @@ int main(int argc, char *argv[]) {
 
   size_t count = git_status_list_entrycount(status);
 
+  size_t stagedCount = 0;
+  size_t untrackedCount = 0;
+
   const git_status_entry *entry;
   for (size_t index = 0; index < count; ++index) {
     entry = git_status_byindex(status, index);
 
-    // TODO: Increment counters
+    if (entry->status & GIT_STATUS_CURRENT) {
+      continue;
+    }
+
     char *istatus = NULL;
-    if (entry->status & GIT_STATUS_INDEX_NEW)
-      istatus = "staged new file:    ";
-    if (entry->status & GIT_STATUS_INDEX_MODIFIED)
-      istatus = "staged modified:    ";
-    if (entry->status & GIT_STATUS_INDEX_DELETED)
-      istatus = "staged deleted:     ";
-    if (entry->status & GIT_STATUS_INDEX_RENAMED)
-      istatus = "staged renamed:     ";
-    if (entry->status & GIT_STATUS_INDEX_TYPECHANGE)
-      istatus = "staged typechange:  ";
+    if (entry->status & GIT_STATUS_INDEX_NEW ||
+        entry->status & GIT_STATUS_INDEX_MODIFIED ||
+        entry->status & GIT_STATUS_INDEX_DELETED ||
+        entry->status & GIT_STATUS_INDEX_RENAMED ||
+        entry->status & GIT_STATUS_INDEX_TYPECHANGE) {
+      ++stagedCount;
+    }
 
-    if (entry->status & GIT_STATUS_WT_NEW)
-      istatus = "unstaged new file:  ";
-    if (entry->status & GIT_STATUS_WT_MODIFIED)
-      istatus = "unstaged modified:  ";
-    if (entry->status & GIT_STATUS_WT_DELETED)
-      istatus = "unstaged deleted:   ";
-    if (entry->status & GIT_STATUS_WT_RENAMED)
-      istatus = "unstaged renamed:   ";
-    if (entry->status & GIT_STATUS_WT_TYPECHANGE)
-      istatus = "unstaged typechange:";
-
-    printf("%s: %s\n", istatus, entry->index_to_workdir->new_file.path);
+    if (entry->status & GIT_STATUS_WT_NEW ||
+        entry->status & GIT_STATUS_WT_MODIFIED ||
+        entry->status & GIT_STATUS_WT_DELETED ||
+        entry->status & GIT_STATUS_WT_RENAMED ||
+        entry->status & GIT_STATUS_WT_TYPECHANGE) {
+      ++untrackedCount;
+    }
   }
 
+  // TODO: Get merge conflict count.
+
   // TODO: Find a fast way to determine if submodules are dirty!
+
+  printf("staged   : %zu\n", stagedCount);
+  printf("untracked: %zu\n", untrackedCount);
 
   // NOTE: Clean up allocated resources.
   git_repository_free(repo);
