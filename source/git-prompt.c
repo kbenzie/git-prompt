@@ -1,4 +1,3 @@
-#include <dirent.h>
 #include <unistd.h>
 
 #include <stdio.h>
@@ -12,11 +11,13 @@
     action;                                  \
   }
 
+#define PATH_LENGTH 4096
+
 enum gp_error_t {
   GP_SUCCESS = 0,
   GP_ERROR_GET_CURRENT_DIR_FAILED = -1,
   GP_ERROR_OPEN_REPO_FAILED = -2,
-  GP_ERROR_DISCOVER_REPO_FAILE = -3,
+  GP_ERROR_DISCOVER_REPO_FAILED = -3,
   GP_ERROR_STATUS_FAILED = -4,
   GP_ERROR_SUBMODULE_ITERATION_FAILED = -5,
 } gp_error;
@@ -58,7 +59,7 @@ int main(int argc, char *argv[]) {
   gp_options options = 0;
 
   // NOTE: Get current working directory.
-  char currentDir[PATH_MAX];
+  char currentDir[PATH_LENGTH];
   if (!getcwd(currentDir, sizeof(currentDir))) {
     return GP_ERROR_GET_CURRENT_DIR_FAILED;
   }
@@ -68,9 +69,9 @@ int main(int argc, char *argv[]) {
 
   // NOTE: Discover the current git repository.
   // TODO: Should ceiling_dirs be set? Configurable?
-  git_buf repoDir;
+  git_buf repoDir = {};
   gpCheck(git_repository_discover(&repoDir, currentDir, 1, NULL),
-          return GP_ERROR_DISCOVER_REPO_FAILE);
+          return GP_ERROR_DISCOVER_REPO_FAILED);
 
   // NOTE: Open the repository.
   git_repository *repo = NULL;
@@ -103,6 +104,13 @@ int main(int argc, char *argv[]) {
 
   gp_counters counters = {};
 
+  // NOTE: We don't care the actual status of the files, only that there has
+  // been a change which is being tracked in the index or the working tree.
+  // These masks cover the ranges of possible values for each in the
+  // git_status_t enum.
+  const uint32_t statusIndexMask = 0x1f;
+  const uint32_t statusWtMask = 0x1f80;
+
   const git_status_entry *entry;
   for (size_t index = 0; index < count; ++index) {
     entry = git_status_byindex(status, index);
@@ -111,33 +119,31 @@ int main(int argc, char *argv[]) {
       continue;
     }
 
-    char *istatus = NULL;
-    if (entry->status & GIT_STATUS_INDEX_NEW ||
-        entry->status & GIT_STATUS_INDEX_MODIFIED ||
-        entry->status & GIT_STATUS_INDEX_DELETED ||
-        entry->status & GIT_STATUS_INDEX_RENAMED ||
-        entry->status & GIT_STATUS_INDEX_TYPECHANGE) {
-      counters.staged++;
+    // NOTE: Determine conflict combination, looking at the status in the
+    // debugger seems to imply that if the index and the working tree bits are
+    // set then this means the file is in a conflicted state. Is this correct?
+    if (entry->status & statusIndexMask && entry->status & statusWtMask) {
+      counters.conflicts++;
+      continue;
     }
 
-    if (entry->status & GIT_STATUS_WT_NEW ||
-        entry->status & GIT_STATUS_WT_MODIFIED ||
-        entry->status & GIT_STATUS_WT_DELETED ||
-        entry->status & GIT_STATUS_WT_RENAMED ||
-        entry->status & GIT_STATUS_WT_TYPECHANGE) {
+    if (entry->status & statusIndexMask) {
+      counters.staged++;
+      continue;
+    }
+
+    if (entry->status & statusWtMask) {
       counters.untracked++;
+      continue;
     }
   }
 
-  // TODO: Find a fast way to determine if submodules are dirty!
-
-  // TODO: Get list of submodules.
+  // NOTE: Getting the status of submodule is slow, particularly for mane large
+  // repositories so it disabled by default.
   if (options & GP_OPTION_ENABLE_SUBMODULE_STATUS) {
     gpCheck(git_submodule_foreach(repo, &submoduleCallback, &counters),
             return GP_ERROR_SUBMODULE_ITERATION_FAILED);
   }
-
-  // TODO: Get merge conflict count.
 
   // TODO: Get the number of commits ahead/behind remote.
 
