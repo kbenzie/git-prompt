@@ -18,7 +18,21 @@ enum gp_error_t {
   GP_ERROR_OPEN_REPO_FAILED = -2,
   GP_ERROR_DISCOVER_REPO_FAILE = -3,
   GP_ERROR_STATUS_FAILED = -4,
-};
+  GP_ERROR_SUBMODULE_ITERATION_FAILED = -5,
+} gp_error;
+
+typedef enum gp_options_t {
+  GP_OPTION_NONE = 0,
+  GP_OPTION_ENABLE_SUBMODULE_STATUS = 1u << 1,
+} gp_options;
+
+typedef struct gp_counters_t {
+  size_t staged;
+  size_t untracked;
+  size_t conflicts;
+} gp_counters;
+
+int submoduleCallback(git_submodule *submodule, const char *name, void *payload);
 
 // TODO: Prefix
 // TODO: Suffix
@@ -37,6 +51,11 @@ enum gp_error_t {
 
 int main(int argc, char *argv[]) {
   // TODO: Handle arguments
+  // * Prompt format
+  // * Enable submodule option
+  // * ...
+
+  gp_options options = 0;
 
   // NOTE: Get current working directory.
   char currentDir[PATH_MAX];
@@ -82,8 +101,7 @@ int main(int argc, char *argv[]) {
 
   size_t count = git_status_list_entrycount(status);
 
-  size_t stagedCount = 0;
-  size_t untrackedCount = 0;
+  gp_counters counters = {};
 
   const git_status_entry *entry;
   for (size_t index = 0; index < count; ++index) {
@@ -99,7 +117,7 @@ int main(int argc, char *argv[]) {
         entry->status & GIT_STATUS_INDEX_DELETED ||
         entry->status & GIT_STATUS_INDEX_RENAMED ||
         entry->status & GIT_STATUS_INDEX_TYPECHANGE) {
-      ++stagedCount;
+      counters.staged++;
     }
 
     if (entry->status & GIT_STATUS_WT_NEW ||
@@ -107,16 +125,27 @@ int main(int argc, char *argv[]) {
         entry->status & GIT_STATUS_WT_DELETED ||
         entry->status & GIT_STATUS_WT_RENAMED ||
         entry->status & GIT_STATUS_WT_TYPECHANGE) {
-      ++untrackedCount;
+      counters.untracked++;
     }
+  }
+
+  // TODO: Find a fast way to determine if submodules are dirty!
+
+  // TODO: Get list of submodules.
+  if (options & GP_OPTION_ENABLE_SUBMODULE_STATUS) {
+    gpCheck(git_submodule_foreach(repo, &submoduleCallback, &counters),
+            return GP_ERROR_SUBMODULE_ITERATION_FAILED);
   }
 
   // TODO: Get merge conflict count.
 
-  // TODO: Find a fast way to determine if submodules are dirty!
+  // TODO: Get the number of commits ahead/behind remote.
 
-  printf("staged   : %zu\n", stagedCount);
-  printf("untracked: %zu\n", untrackedCount);
+  // TODO: Get current branch name.
+
+  printf("staged   : %zu\n", counters.staged);
+  printf("untracked: %zu\n", counters.untracked);
+  printf("conflicts: %zu\n", counters.conflicts);
 
   // NOTE: Clean up allocated resources.
   git_repository_free(repo);
@@ -127,3 +156,42 @@ int main(int argc, char *argv[]) {
 
   return 0;
 }
+
+int submoduleCallback(git_submodule *submodule, const char *name, void *payload) {
+  gp_counters *counters = (gp_counters *)payload;
+
+  // TODO: Is there a flag to make the status query faster but still provide the
+  // desired information? We want to avoid traversing the submodules index if at
+  // all possible, or do it optimally as possible.
+  git_submodule_ignore_t ignore =
+      git_submodule_set_ignore(submodule, GIT_SUBMODULE_IGNORE_UNTRACKED);
+
+  // NOTE: Querying the statue of a large submodule is slow, this behaviour
+  // should be optional and disabled by default.
+  uint32_t status;
+  gpCheck(git_submodule_status(&status, submodule), return -1);
+
+  // TODO: (status & GIT_SUBMODULE_STATUS_IN_HEAD) ?
+  // TODO: (status & GIT_SUBMODULE_STATUS_IN_INDEX) ?
+  // TODO: (status & GIT_SUBMODULE_STATUS_IN_CONFIG) ?
+  // TODO: (status & GIT_SUBMODULE_STATUS_IN_WD) ?
+
+  if (status & GIT_SUBMODULE_STATUS_INDEX_ADDED ||
+      status & GIT_SUBMODULE_STATUS_INDEX_DELETED ||
+      status & GIT_SUBMODULE_STATUS_INDEX_MODIFIED) {
+    counters->staged++;
+  }
+
+  if (status & GIT_SUBMODULE_STATUS_WD_UNINITIALIZED ||
+      status & GIT_SUBMODULE_STATUS_WD_ADDED ||
+      status & GIT_SUBMODULE_STATUS_WD_DELETED ||
+      status & GIT_SUBMODULE_STATUS_WD_MODIFIED ||
+      status & GIT_SUBMODULE_STATUS_WD_INDEX_MODIFIED ||
+      status & GIT_SUBMODULE_STATUS_WD_WD_MODIFIED ||
+      status & GIT_SUBMODULE_STATUS_WD_UNTRACKED) {
+    counters->untracked++;
+  }
+
+  return 0;
+}
+
