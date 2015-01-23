@@ -20,6 +20,7 @@ enum gp_error_t {
   GP_ERROR_DISCOVER_REPO_FAILED = -3,
   GP_ERROR_STATUS_FAILED = -4,
   GP_ERROR_SUBMODULE_ITERATION_FAILED = -5,
+  GP_ERROR_GET_REPO_HEAD_FAILED = -6,
 } gp_error;
 
 typedef enum gp_options_t {
@@ -39,13 +40,13 @@ int submoduleCallback(git_submodule *submodule, const char *name, void *payload)
 // TODO: Suffix
 // TODO: Separator
 
-// TODO: Branch
-
 // TODO: Clean
 
 // TODO: Staged
 // TODO: Untracked
 // TODO: Conflicts
+
+// TODO: Branch
 
 // TODO: Behind
 // TODO: Ahead
@@ -145,10 +146,17 @@ int main(int argc, char *argv[]) {
             return GP_ERROR_SUBMODULE_ITERATION_FAILED);
   }
 
+  // NOTE: Get current branch name.
+  git_reference *head = NULL;
+  gpCheck(git_repository_head(&head, repo),
+          return GP_ERROR_GET_REPO_HEAD_FAILED);
+  const char *branch = git_reference_shorthand(head);
+
+  git_reference_free(head);
+
   // TODO: Get the number of commits ahead/behind remote.
 
-  // TODO: Get current branch name.
-
+  printf("branch   : %s\n", branch);
   printf("staged   : %zu\n", counters.staged);
   printf("untracked: %zu\n", counters.untracked);
   printf("conflicts: %zu\n", counters.conflicts);
@@ -167,8 +175,8 @@ int submoduleCallback(git_submodule *submodule, const char *name, void *payload)
   gp_counters *counters = (gp_counters *)payload;
 
   // TODO: Is there a flag to make the status query faster but still provide the
-  // desired information? We want to avoid traversing the submodules index if at
-  // all possible, or do it optimally as possible.
+  // desired information? We want to avoid traversing the submodules index if
+  // possible, or at least do it more optimally?
   git_submodule_ignore_t ignore =
       git_submodule_set_ignore(submodule, GIT_SUBMODULE_IGNORE_UNTRACKED);
 
@@ -177,27 +185,18 @@ int submoduleCallback(git_submodule *submodule, const char *name, void *payload)
   uint32_t status;
   gpCheck(git_submodule_status(&status, submodule), return -1);
 
-  // TODO: (status & GIT_SUBMODULE_STATUS_IN_HEAD) ?
-  // TODO: (status & GIT_SUBMODULE_STATUS_IN_INDEX) ?
-  // TODO: (status & GIT_SUBMODULE_STATUS_IN_CONFIG) ?
-  // TODO: (status & GIT_SUBMODULE_STATUS_IN_WD) ?
+  // NOTE: Once again we don't care what the actual status of the submodule is
+  // to we just test for the status of the index and working tree.
+  const uint32_t statusIndexMask = 0x70;
+  const uint32_t statusWtMask = 0x3f80;
 
-  if (status & GIT_SUBMODULE_STATUS_INDEX_ADDED ||
-      status & GIT_SUBMODULE_STATUS_INDEX_DELETED ||
-      status & GIT_SUBMODULE_STATUS_INDEX_MODIFIED) {
+  if (status & statusIndexMask) {
     counters->staged++;
   }
 
-  if (status & GIT_SUBMODULE_STATUS_WD_UNINITIALIZED ||
-      status & GIT_SUBMODULE_STATUS_WD_ADDED ||
-      status & GIT_SUBMODULE_STATUS_WD_DELETED ||
-      status & GIT_SUBMODULE_STATUS_WD_MODIFIED ||
-      status & GIT_SUBMODULE_STATUS_WD_INDEX_MODIFIED ||
-      status & GIT_SUBMODULE_STATUS_WD_WD_MODIFIED ||
-      status & GIT_SUBMODULE_STATUS_WD_UNTRACKED) {
+  if (status & statusWtMask) {
     counters->untracked++;
   }
 
-  return 0;
+  return GP_SUCCESS;
 }
-
