@@ -21,6 +21,8 @@ enum gp_error_t {
   GP_ERROR_STATUS_FAILED = -4,
   GP_ERROR_SUBMODULE_ITERATION_FAILED = -5,
   GP_ERROR_GET_REPO_HEAD_FAILED = -6,
+  GP_ERROR_AHEAD_BEHIND_FAILED = -7,
+  GP_ERROR_REMOTE_LIST_FAILED = -8,
 } gp_error;
 
 typedef enum gp_options_t {
@@ -32,7 +34,22 @@ typedef struct gp_counters_t {
   size_t staged;
   size_t untracked;
   size_t conflicts;
+  size_t ahead;
+  size_t behind;
 } gp_counters;
+
+typedef struct gp_tokens_t {
+  const char *prefix;
+  const char *suffix;
+  const char *branch;
+  const char *separator;
+  const char *clean;
+  const char *staged;
+  const char *untracked;
+  const char *conflicts;
+  const char *ahead;
+  const char *behind;
+} gp_tokens;
 
 int submoduleCallback(git_submodule *submodule, const char *name, void *payload);
 
@@ -51,7 +68,7 @@ int submoduleCallback(git_submodule *submodule, const char *name, void *payload)
 // TODO: Behind
 // TODO: Ahead
 
-int main(int argc, char *argv[]) {
+int main(int argc, char **argv) {
   // TODO: Handle arguments
   // * Prompt format
   // * Enable submodule option
@@ -143,32 +160,68 @@ int main(int argc, char *argv[]) {
   // repositories so it disabled by default.
   if (options & GP_OPTION_ENABLE_SUBMODULE_STATUS) {
     gpCheck(git_submodule_foreach(repo, &submoduleCallback, &counters),
-            return GP_ERROR_SUBMODULE_ITERATION_FAILED);
+            git_repository_free(repo);
+            git_libgit2_shutdown(); return GP_ERROR_SUBMODULE_ITERATION_FAILED);
   }
 
   // NOTE: Get current branch name.
   git_reference *head = NULL;
   gpCheck(git_repository_head(&head, repo),
-          return GP_ERROR_GET_REPO_HEAD_FAILED);
+          git_repository_free(repo);
+          git_libgit2_shutdown(); return GP_ERROR_GET_REPO_HEAD_FAILED);
   const char *branch = git_reference_shorthand(head);
 
+  // NOTE: Get a list the possible remote names to determine how far ahead or
+  // behind the local HEAD is.
+  git_strarray remoteList;
+  gpCheck(git_remote_list(&remoteList, repo), git_reference_free(head);
+          git_repository_free(repo); git_libgit2_shutdown();
+          return GP_ERROR_REMOTE_LIST_FAILED);
+
+  // NOTE: Get the number of commits ahead/behind remote.
+  if (remoteList.count) {
+    const git_oid *local = git_reference_target(head);
+
+    // TODO: Is the first entry in the remoteList actually the default as we
+    // assume?
+
+    // NOTE: Construct the full remote name.
+    char remoteName[PATH_LENGTH];
+    strcpy(remoteName, "refs/remotes/");
+    strcat(remoteName, remoteList.strings[0]);
+    strcat(remoteName, "/");
+    strcat(remoteName, branch);
+
+    // NOTE: Use the remote branch name to
+    git_oid upstream;
+    int error = git_reference_name_to_id(&upstream, repo, remoteName);
+
+    if (local && !error) {
+      gpCheck(git_graph_ahead_behind(&counters.ahead, &counters.behind, repo,
+                                     local, &upstream),
+              git_reference_free(head);
+              git_repository_free(repo); git_libgit2_shutdown();
+              return GP_ERROR_AHEAD_BEHIND_FAILED);
+    }
+  }
+
+  // NOTE: Clean up allocated resources.
   git_reference_free(head);
+  git_repository_free(repo);
+  git_libgit2_shutdown();
 
-  // TODO: Get the number of commits ahead/behind remote.
+  // TODO: Construct the prompt string.
 
+  // TOOD: Remove these!!!
   printf("branch   : %s\n", branch);
   printf("staged   : %zu\n", counters.staged);
   printf("untracked: %zu\n", counters.untracked);
   printf("conflicts: %zu\n", counters.conflicts);
-
-  // NOTE: Clean up allocated resources.
-  git_repository_free(repo);
-  git_libgit2_shutdown();
-
-  // TODO: Make this debug only!
+  printf("ahead    : %zu\n", counters.ahead);
+  printf("behind   : %zu\n", counters.behind);
   printf("finished\n");
 
-  return 0;
+  return GP_SUCCESS;
 }
 
 int submoduleCallback(git_submodule *submodule, const char *name, void *payload) {
