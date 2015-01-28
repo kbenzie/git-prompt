@@ -12,6 +12,7 @@
   }
 
 #define PATH_LENGTH 4096
+#define TOKEN_LENGTH 64
 
 enum gp_error_t {
   GP_SUCCESS = 0,
@@ -23,12 +24,16 @@ enum gp_error_t {
   GP_ERROR_GET_REPO_HEAD_FAILED = -6,
   GP_ERROR_AHEAD_BEHIND_FAILED = -7,
   GP_ERROR_REMOTE_LIST_FAILED = -8,
+  GP_ERROR_INVALID_ARGUMENT = -9,
 } gp_error;
 
-typedef enum gp_options_t {
+typedef enum gp_option_t {
   GP_OPTION_NONE = 0,
   GP_OPTION_ENABLE_SUBMODULE_STATUS = 1u << 1,
-} gp_options;
+  GP_OPTION_ENABLE_DEBUG_OUTPUT = 1u << 2,
+} gp_option_t;
+
+typedef int gp_options;
 
 typedef struct gp_counters_t {
   size_t staged;
@@ -40,32 +45,31 @@ typedef struct gp_counters_t {
 } gp_counters;
 
 typedef struct gp_tokens_t {
-  char prefix[16];
-  char suffix[16];
-  char separator[16];
-  char staged[16];
-  char conflicts[16];
-  char changed[16];
-  char clean[16];
-  char untracked[16];
-  char ahead[16];
-  char behind[16];
+  char prefix[TOKEN_LENGTH];
+  char suffix[TOKEN_LENGTH];
+  char separator[TOKEN_LENGTH];
+  char branch[TOKEN_LENGTH];
+  char staged[TOKEN_LENGTH];
+  char conflicts[TOKEN_LENGTH];
+  char changed[TOKEN_LENGTH];
+  char clean[TOKEN_LENGTH];
+  char untracked[TOKEN_LENGTH];
+  char ahead[TOKEN_LENGTH];
+  char behind[TOKEN_LENGTH];
 } gp_tokens;
 
-int submoduleCallback(git_submodule *submodule, const char *name, void *payload);
+int submoduleCallback(git_submodule *submodule, const char *name,
+                      void *payload);
 
 int main(int argc, char **argv) {
-  // TODO: Handle arguments
-  // * Prompt format
-  //   Each prompt element must be supplied other wise it an error.
-  //   Should the order be enforced? Or should they be specified by a dash
-  //   followed by a mapped letter?
-  // * Enable submodule option
-  // * ...
   gp_tokens tokens;
+  memset(&tokens, 0, sizeof(tokens));
+
+#if 0
   strcpy(tokens.prefix, " ");
   strcpy(tokens.suffix, "");
   strcpy(tokens.separator, " ");
+  strcpy(tokens.branch, "");
   strcpy(tokens.staged, "*");
   strcpy(tokens.conflicts, "×");
   strcpy(tokens.changed, "+");
@@ -73,11 +77,118 @@ int main(int argc, char **argv) {
   strcpy(tokens.untracked, "…");
   strcpy(tokens.ahead, "↑");
   strcpy(tokens.behind, "↓");
+#endif
 
-  // TODO: Enforce minimum number of arguments
-
+  strcpy(tokens.prefix, "(");
+  strcpy(tokens.suffix, ")");
+  strcpy(tokens.separator, "|");
+  strcpy(tokens.branch, "");
+  strcpy(tokens.staged, "●");
+  strcpy(tokens.conflicts, "×");
+  strcpy(tokens.changed, "+");
+  strcpy(tokens.clean, "✓");
+  strcpy(tokens.untracked, "…");
+  strcpy(tokens.behind, "↓");
+  strcpy(tokens.ahead, "↑");
 
   gp_options options = 0;
+
+  for (int argIndex = 1; argIndex < argc; ++argIndex) {
+    if (!strcmp("-h", argv[argIndex]) || !strcmp("--help", argv[argIndex])) {
+      printf("Usage: %s <options>\n\n", argv[0]);
+      printf("Options:\n");
+      printf("    -h --help         Show this help dialogue\n");
+      printf("    --submodules      Enable submodule status updates\n");
+      printf("    --debug           Enable debug output\n");
+      printf("    prefix \"%s\"        Change the prefix token to '%s'\n",
+             tokens.prefix, tokens.prefix);
+      printf("    suffix \"%s\"        Change the suffix token to '%s'\n",
+             tokens.suffix, tokens.suffix);
+      printf("    separator \"%s\"     Change the separator token to '%s'\n",
+             tokens.separator, tokens.separator);
+      printf("    staged \"%s\"        Change the staged token to '%s'\n",
+             tokens.staged, tokens.staged);
+      printf("    conflicts \"%s\"     Change the conflicts token to '%s'\n",
+             tokens.conflicts, tokens.conflicts);
+      printf("    changed \"%s\"       Change the changed token to '%s'\n",
+             tokens.changed, tokens.changed);
+      printf("    clean \"%s\"         Change the clean token to '%s'\n",
+             tokens.clean, tokens.clean);
+      printf("    untracked \"%s\"     Change the untracked token to '%s'\n",
+             tokens.untracked, tokens.untracked);
+      printf("    ahead \"%s\"         Change the ahead token to '%s'\n",
+             tokens.ahead, tokens.ahead);
+      printf("    behind \"%s\"        Change the behind token to '%s'\n",
+             tokens.behind, tokens.behind);
+      return GP_SUCCESS;
+    }
+    if (!strcmp("--debug", argv[argIndex])) {
+      options |= GP_OPTION_ENABLE_DEBUG_OUTPUT;
+      continue;
+    }
+    if (!strcmp("--submodules", argv[argIndex])) {
+      options |= GP_OPTION_ENABLE_SUBMODULE_STATUS;
+      continue;
+    }
+    if (!strcmp("prefix", argv[argIndex])) {
+      strcpy(tokens.prefix, argv[++argIndex]);
+      continue;
+    }
+    if (!strcmp("suffix", argv[argIndex])) {
+      strcpy(tokens.suffix, argv[++argIndex]);
+      continue;
+    }
+    if (!strcmp("branch", argv[argIndex])) {
+      strcpy(tokens.branch, argv[++argIndex]);
+      continue;
+    }
+    if (!strcmp("separator", argv[argIndex])) {
+      strcpy(tokens.separator, argv[++argIndex]);
+      continue;
+    }
+    if (!strcmp("staged", argv[argIndex])) {
+      strcpy(tokens.staged, argv[++argIndex]);
+      continue;
+    }
+    if (!strcmp("conflicts", argv[argIndex])) {
+      strcpy(tokens.conflicts, argv[++argIndex]);
+      continue;
+    }
+    if (!strcmp("changed", argv[argIndex])) {
+      strcpy(tokens.changed, argv[++argIndex]);
+      continue;
+    }
+    if (!strcmp("untracked", argv[argIndex])) {
+      strcpy(tokens.untracked, argv[++argIndex]);
+      continue;
+    }
+    if (!strcmp("clean", argv[argIndex])) {
+      strcpy(tokens.clean, argv[++argIndex]);
+      continue;
+    }
+    if (!strcmp("ahead", argv[argIndex])) {
+      strcpy(tokens.ahead, argv[++argIndex]);
+      continue;
+    }
+    if (!strcmp("behind", argv[argIndex])) {
+      strcpy(tokens.behind, argv[++argIndex]);
+      continue;
+    }
+    return GP_ERROR_INVALID_ARGUMENT;
+  }
+
+  if (options & GP_OPTION_ENABLE_DEBUG_OUTPUT) {
+    printf("prefix    '%s'\n", tokens.prefix);
+    printf("suffix    '%s'\n", tokens.suffix);
+    printf("separator '%s'\n", tokens.separator);
+    printf("branch    '%sbranch'\n", tokens.branch);
+    printf("staged    '%s'\n", tokens.staged);
+    printf("conflicts '%s'\n", tokens.conflicts);
+    printf("changed   '%s'\n", tokens.changed);
+    printf("clean     '%s'\n", tokens.clean);
+    printf("ahead     '%s'\n", tokens.ahead);
+    printf("behind    '%s'\n", tokens.behind);
+  }
 
   // NOTE: Get current working directory.
   char currentDir[PATH_LENGTH];
@@ -180,8 +291,7 @@ int main(int argc, char **argv) {
 
   // NOTE: Get current branch name.
   git_reference *head = NULL;
-  gpCheck(git_repository_head(&head, repo),
-          git_repository_free(repo);
+  gpCheck(git_repository_head(&head, repo), git_repository_free(repo);
           git_libgit2_shutdown(); return GP_ERROR_GET_REPO_HEAD_FAILED);
   const char *branch = git_reference_shorthand(head);
 
@@ -224,9 +334,10 @@ int main(int argc, char **argv) {
   git_repository_free(repo);
   git_libgit2_shutdown();
 
-  // TODO: Construct the prompt string.
+// TODO: Construct the prompt string.
 
-  // TODO: Remove these!!!
+// TODO: Remove these!!!
+#if 0
   printf("branch   : %s\n", branch);
   printf("staged   : %zu\n", counters.staged);
   printf("changed  : %zu\n", counters.changed);
@@ -235,6 +346,7 @@ int main(int argc, char **argv) {
   printf("ahead    : %zu\n", counters.ahead);
   printf("behind   : %zu\n", counters.behind);
   printf("finished\n");
+#endif
 
   if (!counters.staged && !counters.changed && !counters.untracked &&
       !counters.conflicts && !counters.ahead && !counters.behind) {
@@ -245,7 +357,7 @@ int main(int argc, char **argv) {
   char prompt[PATH_LENGTH] = "";
   char scratch[PATH_LENGTH] = "";
 
-  strcpy(prompt, branch);
+  snprintf(prompt, PATH_LENGTH, "%s%s", tokens.branch, branch);
 
   if (counters.ahead) {
     snprintf(scratch, PATH_LENGTH, "%s%zu", tokens.ahead, counters.ahead);
@@ -270,16 +382,18 @@ int main(int argc, char **argv) {
     strncat(prompt, scratch, PATH_LENGTH);
   }
   if (counters.conflicts) {
-    snprintf(scratch, PATH_LENGTH, "%s%zu", tokens.conflicts, counters.conflicts);
+    snprintf(scratch, PATH_LENGTH, "%s%zu", tokens.conflicts,
+             counters.conflicts);
     strncat(prompt, scratch, PATH_LENGTH);
   }
 
-  printf("%s", prompt);
+  printf("%s%s%s", tokens.prefix, prompt, tokens.suffix);
 
   return GP_SUCCESS;
 }
 
-int submoduleCallback(git_submodule *submodule, const char *name, void *payload) {
+int submoduleCallback(git_submodule *submodule, const char *name,
+                      void *payload) {
   gp_counters *counters = (gp_counters *)payload;
 
   // TODO: Is there a flag to make the status query faster but still provide the
@@ -295,14 +409,24 @@ int submoduleCallback(git_submodule *submodule, const char *name, void *payload)
 
   // NOTE: Once again we don't care what the actual status of the submodule is
   // to we just test for the status of the index and working tree.
-  const uint32_t statusIndexMask = 0x70;
-  const uint32_t statusWtMask = 0x3f80;
+  const uint32_t statusIndexMask = GIT_SUBMODULE_STATUS_INDEX_ADDED |
+                                   GIT_SUBMODULE_STATUS_INDEX_DELETED |
+                                   GIT_SUBMODULE_STATUS_INDEX_MODIFIED;
+  const uint32_t statusWtMask =
+      GIT_SUBMODULE_STATUS_WD_UNINITIALIZED | GIT_SUBMODULE_STATUS_WD_ADDED |
+      GIT_SUBMODULE_STATUS_WD_DELETED | GIT_SUBMODULE_STATUS_WD_MODIFIED |
+      GIT_SUBMODULE_STATUS_WD_INDEX_MODIFIED |
+      GIT_SUBMODULE_STATUS_WD_WD_MODIFIED;
 
   if (status & statusIndexMask) {
     counters->staged++;
   }
 
   if (status & statusWtMask) {
+    counters->changed++;
+  }
+
+  if (status & GIT_SUBMODULE_STATUS_WD_UNTRACKED) {
     counters->untracked++;
   }
 
