@@ -32,6 +32,7 @@ typedef enum gp_options_t {
 
 typedef struct gp_counters_t {
   size_t staged;
+  size_t changed;
   size_t untracked;
   size_t conflicts;
   size_t ahead;
@@ -39,40 +40,42 @@ typedef struct gp_counters_t {
 } gp_counters;
 
 typedef struct gp_tokens_t {
-  const char *prefix;
-  const char *suffix;
-  const char *branch;
-  const char *separator;
-  const char *clean;
-  const char *staged;
-  const char *untracked;
-  const char *conflicts;
-  const char *ahead;
-  const char *behind;
+  char prefix[16];
+  char suffix[16];
+  char separator[16];
+  char staged[16];
+  char conflicts[16];
+  char changed[16];
+  char clean[16];
+  char untracked[16];
+  char ahead[16];
+  char behind[16];
 } gp_tokens;
 
 int submoduleCallback(git_submodule *submodule, const char *name, void *payload);
 
-// TODO: Prefix
-// TODO: Suffix
-// TODO: Separator
-
-// TODO: Clean
-
-// TODO: Staged
-// TODO: Untracked
-// TODO: Conflicts
-
-// TODO: Branch
-
-// TODO: Behind
-// TODO: Ahead
-
 int main(int argc, char **argv) {
   // TODO: Handle arguments
   // * Prompt format
+  //   Each prompt element must be supplied other wise it an error.
+  //   Should the order be enforced? Or should they be specified by a dash
+  //   followed by a mapped letter?
   // * Enable submodule option
   // * ...
+  gp_tokens tokens;
+  strcpy(tokens.prefix, " ");
+  strcpy(tokens.suffix, "");
+  strcpy(tokens.separator, " ");
+  strcpy(tokens.staged, "*");
+  strcpy(tokens.conflicts, "×");
+  strcpy(tokens.changed, "+");
+  strcpy(tokens.clean, "✓");
+  strcpy(tokens.untracked, "…");
+  strcpy(tokens.ahead, "↑");
+  strcpy(tokens.behind, "↓");
+
+  // TODO: Enforce minimum number of arguments
+
 
   gp_options options = 0;
 
@@ -126,8 +129,14 @@ int main(int argc, char **argv) {
   // been a change which is being tracked in the index or the working tree.
   // These masks cover the ranges of possible values for each in the
   // git_status_t enum.
-  const uint32_t statusIndexMask = 0x1f;
-  const uint32_t statusWtMask = 0x1f80;
+  const uint32_t statusIndexMask =
+      GIT_STATUS_INDEX_NEW | GIT_STATUS_INDEX_MODIFIED |
+      GIT_STATUS_INDEX_DELETED | GIT_STATUS_INDEX_RENAMED |
+      GIT_STATUS_INDEX_TYPECHANGE;
+  const uint32_t statusWtMask =
+      GIT_STATUS_WT_NEW | GIT_STATUS_WT_MODIFIED | GIT_STATUS_WT_DELETED |
+      GIT_STATUS_WT_TYPECHANGE | GIT_STATUS_WT_RENAMED |
+      GIT_STATUS_WT_UNREADABLE;
 
   const git_status_entry *entry;
   for (size_t index = 0; index < count; ++index) {
@@ -150,7 +159,12 @@ int main(int argc, char **argv) {
       continue;
     }
 
-    if (entry->status & statusWtMask) {
+    if (entry->status & (statusWtMask ^ GIT_STATUS_WT_NEW)) {
+      counters.changed++;
+      continue;
+    }
+
+    if (entry->status & GIT_STATUS_WT_NEW) {
       counters.untracked++;
       continue;
     }
@@ -212,14 +226,55 @@ int main(int argc, char **argv) {
 
   // TODO: Construct the prompt string.
 
-  // TOOD: Remove these!!!
+  // TODO: Remove these!!!
   printf("branch   : %s\n", branch);
   printf("staged   : %zu\n", counters.staged);
+  printf("changed  : %zu\n", counters.changed);
   printf("untracked: %zu\n", counters.untracked);
   printf("conflicts: %zu\n", counters.conflicts);
   printf("ahead    : %zu\n", counters.ahead);
   printf("behind   : %zu\n", counters.behind);
   printf("finished\n");
+
+  if (!counters.staged && !counters.changed && !counters.untracked &&
+      !counters.conflicts && !counters.ahead && !counters.behind) {
+    printf("%s%s%s", branch, tokens.separator, tokens.clean);
+    return 0;
+  }
+
+  char prompt[PATH_LENGTH] = "";
+  char scratch[PATH_LENGTH] = "";
+
+  strcpy(prompt, branch);
+
+  if (counters.ahead) {
+    snprintf(scratch, PATH_LENGTH, "%s%zu", tokens.ahead, counters.ahead);
+  }
+  if (counters.behind) {
+    snprintf(scratch, PATH_LENGTH, "%s%zu", tokens.behind, counters.behind);
+  }
+  strncat(prompt, scratch, PATH_LENGTH);
+
+  strncat(prompt, tokens.separator, PATH_LENGTH);
+
+  if (counters.staged) {
+    snprintf(scratch, PATH_LENGTH, "%s%zu", tokens.staged, counters.staged);
+    strncat(prompt, scratch, PATH_LENGTH);
+  }
+  if (counters.changed) {
+    snprintf(scratch, PATH_LENGTH, "%s%zu", tokens.changed, counters.changed);
+    strncat(prompt, scratch, PATH_LENGTH);
+  }
+  if (counters.untracked) {
+    snprintf(scratch, PATH_LENGTH, "%s", tokens.untracked);
+    strncat(prompt, scratch, PATH_LENGTH);
+  }
+  if (counters.conflicts) {
+    snprintf(scratch, PATH_LENGTH, "%s%zu", tokens.conflicts, counters.conflicts);
+    strncat(prompt, scratch, PATH_LENGTH);
+  }
+
+  printf("%s", prompt);
 
   return GP_SUCCESS;
 }
