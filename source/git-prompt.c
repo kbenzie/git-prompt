@@ -350,7 +350,8 @@ int main(int argc, char **argv) {
 
   if (!counters.staged && !counters.changed && !counters.untracked &&
       !counters.conflicts && !counters.ahead && !counters.behind) {
-    printf("%s%s%s", branch, tokens.separator, tokens.clean);
+    printf("%s%s%s%s%s%s", tokens.prefix, tokens.branch, branch,
+           tokens.separator, tokens.clean, tokens.suffix);
     return 0;
   }
 
