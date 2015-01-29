@@ -368,7 +368,10 @@ int main(int argc, char **argv) {
   }
   strncat(prompt, scratch, PATH_LENGTH);
 
-  strncat(prompt, tokens.separator, PATH_LENGTH);
+  if (counters.staged || counters.changed || counters.untracked ||
+      counters.conflicts) {
+    strncat(prompt, tokens.separator, PATH_LENGTH);
+  }
 
   if (counters.staged) {
     snprintf(scratch, PATH_LENGTH, "%s%zu", tokens.staged, counters.staged);
