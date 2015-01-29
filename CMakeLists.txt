@@ -13,3 +13,5 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/libgit2/include)
 add_executable(git-prompt ${CMAKE_CURRENT_SOURCE_DIR}/source/git-prompt.c)
 
 target_link_libraries(git-prompt git2)
+
+install(TARGETS git-prompt DESTINATION bin)
