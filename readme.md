@@ -1,14 +1,14 @@
 # git-prompt a native git prompt status tool
 
 This project aims to provide a fast, informative string to be incorporated into
-you're shell prompt. With this in mind `git-prompt` is written in C and uses
+your shell prompt. With this in mind `git-prompt` is written in C and uses
 the `libgit2` library, enabling robust, visible, repository status discovery
-without slowing down you're shell.
+without slowing down your shell.
 
 ## Installation
 
 To install `git-prompt` for use from the command line or, most likely, for
-integration with you terminal prompt, run the CMake `install` target. This will
+integration with your terminal prompt, run the CMake `install` target. This will
 add the `git-prompt` executable and the `libgit2` library to the
 `CMAKE_INSTALL_PREFIX` location.
 
@@ -42,7 +42,7 @@ Options:
 
 ## Usage
 
-At the time of writing the following configurations have only been test with
+At the time of writing the following configurations have only been tested with
 zsh on OS X, however there should be no reason that `git-prompt` would not work
 equally as well on Linux or with another shell, as long as the appropriate
 escape codes are used to maintain a correct prompt length.
