@@ -78,5 +78,5 @@ git_prompt() {
     behind '%{\e[1;0m%}↓'`
 }
 
-PS1='[%{$fg_bold[white]%}%D{%H:%M:%S}%{$reset_color%}] $USER_COLOR%n%{${reset_color}%}$HOST_NAME «%{$fg_bold[blue]%}%~%{$reset_color%} $(git_prompt)» '
+PS1='[%{$fg_bold[white]%}%D{%H:%M:%S}%{$reset_color%}] %{$fg_bold[green]%}%n%{${reset_color}%} «%{$fg_bold[blue]%}%~%{$reset_color%} $(git_prompt)» '
 ```
