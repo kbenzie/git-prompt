@@ -30,14 +30,16 @@ Options:
     --debug           Enable debug output
     prefix "("        Change the prefix token to '('
     suffix ")"        Change the suffix token to ')'
+    branch ""         Change the branch token to ''
+    nohead "∅"        Change the nohead token to '∅'
     separator "|"     Change the separator token to '|'
     staged "●"        Change the staged token to '●'
     conflicts "×"     Change the conflicts token to '×'
     changed "+"       Change the changed token to '+'
     clean "✓"         Change the clean token to '✓'
     untracked "…"     Change the untracked token to '…'
-    ahead "↑"         Change the ahead token to '↑'
-    behind "↓"        Change the behind token to '↓')"
+    ahead "↓"         Change the ahead token to '↓'
+    behind "↑"        Change the behind token to '↑'
 ```
 
 ## Usage
