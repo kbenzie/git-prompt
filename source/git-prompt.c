@@ -49,6 +49,7 @@ typedef struct gp_tokens_t {
   char suffix[TOKEN_LENGTH];
   char separator[TOKEN_LENGTH];
   char branch[TOKEN_LENGTH];
+  char nohead[TOKEN_LENGTH];
   char staged[TOKEN_LENGTH];
   char conflicts[TOKEN_LENGTH];
   char changed[TOKEN_LENGTH];
@@ -63,9 +64,11 @@ int parseArgs(int argc, char **argv, gp_tokens *tokens, gp_options *options);
 int submoduleCallback(git_submodule *submodule, const char *name,
                       void *payload);
 
+void printClean(gp_tokens *tokens, const char *branch);
+
 int main(int argc, char **argv) {
   gp_tokens tokens = {
-      "(", ")", "|", "", "●", "×", "+", "✓", "…", "↓", "↑",
+      "(", ")", "|", "", "∅", "●", "×", "+", "✓", "…", "↓", "↑",
   };
   gp_options options = 0;
   int error = parseArgs(argc, argv, &tokens, &options);
@@ -74,16 +77,21 @@ int main(int argc, char **argv) {
   }
 
   if (options & GP_OPTION_ENABLE_DEBUG_OUTPUT) {
-    printf("prefix    '%s'\n", tokens.prefix);
-    printf("suffix    '%s'\n", tokens.suffix);
-    printf("separator '%s'\n", tokens.separator);
-    printf("branch    '%sbranch'\n", tokens.branch);
-    printf("staged    '%s'\n", tokens.staged);
-    printf("conflicts '%s'\n", tokens.conflicts);
-    printf("changed   '%s'\n", tokens.changed);
-    printf("clean     '%s'\n", tokens.clean);
-    printf("ahead     '%s'\n", tokens.ahead);
-    printf("behind    '%s'\n", tokens.behind);
+    printf(
+        "prefix    '%s'\n"
+        "suffix    '%s'\n"
+        "separator '%s'\n"
+        "branch    '%sbranch'\n"
+        "nohead    '%s\n'"
+        "staged    '%s'\n"
+        "conflicts '%s'\n"
+        "changed   '%s'\n"
+        "clean     '%s'\n"
+        "ahead     '%s'\n"
+        "behind    '%s'\n",
+        tokens.prefix, tokens.suffix, tokens.separator, tokens.branch,
+        tokens.nohead, tokens.staged, tokens.conflicts, tokens.changed,
+        tokens.clean, tokens.ahead, tokens.behind);
   }
 
   // NOTE: Get current working directory.
@@ -110,7 +118,8 @@ int main(int argc, char **argv) {
   git_buf_free(&repoDir);
 
   if (git_repository_is_bare(repo)) {
-    // TODO: How to signify a bare repository?
+    // TODO: Should we add a symbol for bare repositories?
+    printf("repository is bare!");
   }
 
   // NOTE: Recurse over the repository status.
@@ -187,8 +196,16 @@ int main(int argc, char **argv) {
 
   // NOTE: Get current branch name.
   git_reference *head = NULL;
-  gpCheck(git_repository_head(&head, repo), git_repository_free(repo);
-          git_libgit2_shutdown(); return GP_ERROR_GET_REPO_HEAD_FAILED);
+  // TODO: Current we error if a reposotory has no HEAD, this should be allowed.
+  error = git_repository_head(&head, repo), git_repository_free(repo);
+  if (GIT_EUNBORNBRANCH == error) {
+    printClean(&tokens, "∅");
+    return GP_SUCCESS;
+  } else if (error) {
+    git_repository_free(repo);
+    git_libgit2_shutdown();
+    return GP_ERROR_GET_REPO_HEAD_FAILED;
+  }
   const char *branch = git_reference_shorthand(head);
 
   // NOTE: Get a list the possible remote names to determine how far ahead or
@@ -230,25 +247,12 @@ int main(int argc, char **argv) {
   git_repository_free(repo);
   git_libgit2_shutdown();
 
-// TODO: Construct the prompt string.
 
-// TODO: Remove these!!!
-#if 0
-  printf("branch   : %s\n", branch);
-  printf("staged   : %zu\n", counters.staged);
-  printf("changed  : %zu\n", counters.changed);
-  printf("untracked: %zu\n", counters.untracked);
-  printf("conflicts: %zu\n", counters.conflicts);
-  printf("ahead    : %zu\n", counters.ahead);
-  printf("behind   : %zu\n", counters.behind);
-  printf("finished\n");
-#endif
-
+  // NOTE: Check for a clean repo
   if (!counters.staged && !counters.changed && !counters.untracked &&
       !counters.conflicts && !counters.ahead && !counters.behind) {
-    printf("%s%s%s%s%s%s", tokens.prefix, tokens.branch, branch,
-           tokens.separator, tokens.clean, tokens.suffix);
-    return 0;
+    printClean(&tokens, branch);
+    return GP_SUCCESS;
   }
 
   char prompt[PATH_LENGTH] = "";
@@ -304,6 +308,10 @@ int parseArgs(int argc, char**argv, gp_tokens *tokens, gp_options *options) {
              tokens->prefix, tokens->prefix);
       printf("    suffix \"%s\"        Change the suffix token to '%s'\n",
              tokens->suffix, tokens->suffix);
+      printf("    branch \"%s\"        Change the branch token to '%s'\n",
+             tokens->branch, tokens->branch);
+      printf("    nohead \"%s\"        Change the nohead token to '%s'\n",
+             tokens->nohead, tokens->nohead);
       printf("    separator \"%s\"     Change the separator token to '%s'\n",
              tokens->separator, tokens->separator);
       printf("    staged \"%s\"        Change the staged token to '%s'\n",
@@ -340,6 +348,10 @@ int parseArgs(int argc, char**argv, gp_tokens *tokens, gp_options *options) {
     }
     if (!strcmp("branch", argv[argIndex])) {
       strcpy(tokens->branch, argv[++argIndex]);
+      continue;
+    }
+    if (!strcmp("nohead", argv[argIndex])) {
+      strcpy(tokens->nohead, argv[++argIndex]);
       continue;
     }
     if (!strcmp("separator", argv[argIndex])) {
@@ -419,4 +431,9 @@ int submoduleCallback(git_submodule *submodule, const char *name,
   }
 
   return GP_SUCCESS;
+}
+
+void printClean(gp_tokens *tokens, const char *branch) {
+  printf("%s%s%s%s%s%s", tokens->prefix, tokens->branch, branch, tokens->separator,
+         tokens->clean, tokens->suffix);
 }
