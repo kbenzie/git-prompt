@@ -58,123 +58,19 @@ typedef struct gp_tokens_t {
   char behind[TOKEN_LENGTH];
 } gp_tokens;
 
+int parseArgs(int argc, char **argv, gp_tokens *tokens, gp_options *options);
+
 int submoduleCallback(git_submodule *submodule, const char *name,
                       void *payload);
 
 int main(int argc, char **argv) {
-  gp_tokens tokens;
-  memset(&tokens, 0, sizeof(tokens));
-
-#if 0
-  strcpy(tokens.prefix, " ");
-  strcpy(tokens.suffix, "");
-  strcpy(tokens.separator, " ");
-  strcpy(tokens.branch, "");
-  strcpy(tokens.staged, "*");
-  strcpy(tokens.conflicts, "×");
-  strcpy(tokens.changed, "+");
-  strcpy(tokens.clean, "✓");
-  strcpy(tokens.untracked, "…");
-  strcpy(tokens.ahead, "↑");
-  strcpy(tokens.behind, "↓");
-#endif
-
-  strcpy(tokens.prefix, "(");
-  strcpy(tokens.suffix, ")");
-  strcpy(tokens.separator, "|");
-  strcpy(tokens.branch, "");
-  strcpy(tokens.staged, "●");
-  strcpy(tokens.conflicts, "×");
-  strcpy(tokens.changed, "+");
-  strcpy(tokens.clean, "✓");
-  strcpy(tokens.untracked, "…");
-  strcpy(tokens.behind, "↓");
-  strcpy(tokens.ahead, "↑");
-
+  gp_tokens tokens = {
+      "(", ")", "|", "", "●", "×", "+", "✓", "…", "↓", "↑",
+  };
   gp_options options = 0;
-
-  for (int argIndex = 1; argIndex < argc; ++argIndex) {
-    if (!strcmp("-h", argv[argIndex]) || !strcmp("--help", argv[argIndex])) {
-      printf("Usage: %s <options>\n\n", argv[0]);
-      printf("Options:\n");
-      printf("    -h --help         Show this help dialogue\n");
-      printf("    --submodules      Enable submodule status updates\n");
-      printf("    --debug           Enable debug output\n");
-      printf("    prefix \"%s\"        Change the prefix token to '%s'\n",
-             tokens.prefix, tokens.prefix);
-      printf("    suffix \"%s\"        Change the suffix token to '%s'\n",
-             tokens.suffix, tokens.suffix);
-      printf("    separator \"%s\"     Change the separator token to '%s'\n",
-             tokens.separator, tokens.separator);
-      printf("    staged \"%s\"        Change the staged token to '%s'\n",
-             tokens.staged, tokens.staged);
-      printf("    conflicts \"%s\"     Change the conflicts token to '%s'\n",
-             tokens.conflicts, tokens.conflicts);
-      printf("    changed \"%s\"       Change the changed token to '%s'\n",
-             tokens.changed, tokens.changed);
-      printf("    clean \"%s\"         Change the clean token to '%s'\n",
-             tokens.clean, tokens.clean);
-      printf("    untracked \"%s\"     Change the untracked token to '%s'\n",
-             tokens.untracked, tokens.untracked);
-      printf("    ahead \"%s\"         Change the ahead token to '%s'\n",
-             tokens.ahead, tokens.ahead);
-      printf("    behind \"%s\"        Change the behind token to '%s'\n",
-             tokens.behind, tokens.behind);
-      return GP_SUCCESS;
-    }
-    if (!strcmp("--debug", argv[argIndex])) {
-      options |= GP_OPTION_ENABLE_DEBUG_OUTPUT;
-      continue;
-    }
-    if (!strcmp("--submodules", argv[argIndex])) {
-      options |= GP_OPTION_ENABLE_SUBMODULE_STATUS;
-      continue;
-    }
-    if (!strcmp("prefix", argv[argIndex])) {
-      strcpy(tokens.prefix, argv[++argIndex]);
-      continue;
-    }
-    if (!strcmp("suffix", argv[argIndex])) {
-      strcpy(tokens.suffix, argv[++argIndex]);
-      continue;
-    }
-    if (!strcmp("branch", argv[argIndex])) {
-      strcpy(tokens.branch, argv[++argIndex]);
-      continue;
-    }
-    if (!strcmp("separator", argv[argIndex])) {
-      strcpy(tokens.separator, argv[++argIndex]);
-      continue;
-    }
-    if (!strcmp("staged", argv[argIndex])) {
-      strcpy(tokens.staged, argv[++argIndex]);
-      continue;
-    }
-    if (!strcmp("conflicts", argv[argIndex])) {
-      strcpy(tokens.conflicts, argv[++argIndex]);
-      continue;
-    }
-    if (!strcmp("changed", argv[argIndex])) {
-      strcpy(tokens.changed, argv[++argIndex]);
-      continue;
-    }
-    if (!strcmp("untracked", argv[argIndex])) {
-      strcpy(tokens.untracked, argv[++argIndex]);
-      continue;
-    }
-    if (!strcmp("clean", argv[argIndex])) {
-      strcpy(tokens.clean, argv[++argIndex]);
-      continue;
-    }
-    if (!strcmp("ahead", argv[argIndex])) {
-      strcpy(tokens.ahead, argv[++argIndex]);
-      continue;
-    }
-    if (!strcmp("behind", argv[argIndex])) {
-      strcpy(tokens.behind, argv[++argIndex]);
-      continue;
-    }
-    return GP_ERROR_INVALID_ARGUMENT;
+  int error = parseArgs(argc, argv, &tokens, &options);
+  if (error) {
+    return error;
   }
 
   if (options & GP_OPTION_ENABLE_DEBUG_OUTPUT) {
@@ -392,6 +288,94 @@ int main(int argc, char **argv) {
   }
 
   printf("%s%s%s", tokens.prefix, prompt, tokens.suffix);
+
+  return GP_SUCCESS;
+}
+
+int parseArgs(int argc, char**argv, gp_tokens *tokens, gp_options *options) {
+  for (int argIndex = 1; argIndex < argc; ++argIndex) {
+    if (!strcmp("-h", argv[argIndex]) || !strcmp("--help", argv[argIndex])) {
+      printf("Usage: %s <options>\n\n", argv[0]);
+      printf("Options:\n");
+      printf("    -h --help         Show this help dialogue\n");
+      printf("    --submodules      Enable submodule status updates\n");
+      printf("    --debug           Enable debug output\n");
+      printf("    prefix \"%s\"        Change the prefix token to '%s'\n",
+             tokens->prefix, tokens->prefix);
+      printf("    suffix \"%s\"        Change the suffix token to '%s'\n",
+             tokens->suffix, tokens->suffix);
+      printf("    separator \"%s\"     Change the separator token to '%s'\n",
+             tokens->separator, tokens->separator);
+      printf("    staged \"%s\"        Change the staged token to '%s'\n",
+             tokens->staged, tokens->staged);
+      printf("    conflicts \"%s\"     Change the conflicts token to '%s'\n",
+             tokens->conflicts, tokens->conflicts);
+      printf("    changed \"%s\"       Change the changed token to '%s'\n",
+             tokens->changed, tokens->changed);
+      printf("    clean \"%s\"         Change the clean token to '%s'\n",
+             tokens->clean, tokens->clean);
+      printf("    untracked \"%s\"     Change the untracked token to '%s'\n",
+             tokens->untracked, tokens->untracked);
+      printf("    ahead \"%s\"         Change the ahead token to '%s'\n",
+             tokens->ahead, tokens->ahead);
+      printf("    behind \"%s\"        Change the behind token to '%s'\n",
+             tokens->behind, tokens->behind);
+      return GP_SUCCESS;
+    }
+    if (!strcmp("--debug", argv[argIndex])) {
+      *options |= GP_OPTION_ENABLE_DEBUG_OUTPUT;
+      continue;
+    }
+    if (!strcmp("--submodules", argv[argIndex])) {
+      *options |= GP_OPTION_ENABLE_SUBMODULE_STATUS;
+      continue;
+    }
+    if (!strcmp("prefix", argv[argIndex])) {
+      strcpy(tokens->prefix, argv[++argIndex]);
+      continue;
+    }
+    if (!strcmp("suffix", argv[argIndex])) {
+      strcpy(tokens->suffix, argv[++argIndex]);
+      continue;
+    }
+    if (!strcmp("branch", argv[argIndex])) {
+      strcpy(tokens->branch, argv[++argIndex]);
+      continue;
+    }
+    if (!strcmp("separator", argv[argIndex])) {
+      strcpy(tokens->separator, argv[++argIndex]);
+      continue;
+    }
+    if (!strcmp("staged", argv[argIndex])) {
+      strcpy(tokens->staged, argv[++argIndex]);
+      continue;
+    }
+    if (!strcmp("conflicts", argv[argIndex])) {
+      strcpy(tokens->conflicts, argv[++argIndex]);
+      continue;
+    }
+    if (!strcmp("changed", argv[argIndex])) {
+      strcpy(tokens->changed, argv[++argIndex]);
+      continue;
+    }
+    if (!strcmp("untracked", argv[argIndex])) {
+      strcpy(tokens->untracked, argv[++argIndex]);
+      continue;
+    }
+    if (!strcmp("clean", argv[argIndex])) {
+      strcpy(tokens->clean, argv[++argIndex]);
+      continue;
+    }
+    if (!strcmp("ahead", argv[argIndex])) {
+      strcpy(tokens->ahead, argv[++argIndex]);
+      continue;
+    }
+    if (!strcmp("behind", argv[argIndex])) {
+      strcpy(tokens->behind, argv[++argIndex]);
+      continue;
+    }
+    return GP_ERROR_INVALID_ARGUMENT;
+  }
 
   return GP_SUCCESS;
 }
