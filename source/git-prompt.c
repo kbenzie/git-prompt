@@ -16,6 +16,7 @@
 
 enum gp_error_t {
   GP_SUCCESS = 0,
+  GP_HELP = 1,
   GP_ERROR_GET_CURRENT_DIR_FAILED = -1,
   GP_ERROR_OPEN_REPO_FAILED = -2,
   GP_ERROR_DISCOVER_REPO_FAILED = -3,
@@ -82,7 +83,7 @@ int main(int argc, char **argv) {
         "suffix    '%s'\n"
         "separator '%s'\n"
         "branch    '%sbranch'\n"
-        "nohead    '%s\n'"
+        "nohead    ' %s\n'"
         "staged    '%s'\n"
         "conflicts '%s'\n"
         "changed   '%s'\n"
@@ -162,7 +163,7 @@ int main(int argc, char **argv) {
       continue;
     }
 
-    // TODO: Find the correct way to determine the entry is in conflict.
+// TODO: Find the correct way to determine the entry is in conflict.
 #if GP_EXPERIMENTAL
     if (entry->status & statusIndexMask && entry->status & statusWtMask) {
       counters.conflicts++;
@@ -196,57 +197,61 @@ int main(int argc, char **argv) {
 
   // NOTE: Get current branch name.
   git_reference *head = NULL;
+  const char *branch = NULL;
   // TODO: Current we error if a reposotory has no HEAD, this should be allowed.
-  error = git_repository_head(&head, repo), git_repository_free(repo);
-  if (GIT_EUNBORNBRANCH == error) {
-    printClean(&tokens, "∅");
-    return GP_SUCCESS;
-  } else if (error) {
-    git_repository_free(repo);
-    git_libgit2_shutdown();
-    return GP_ERROR_GET_REPO_HEAD_FAILED;
-  }
-  const char *branch = git_reference_shorthand(head);
-
-  // NOTE: Get a list the possible remote names to determine how far ahead or
-  // behind the local HEAD is.
-  git_strarray remoteList;
-  gpCheck(git_remote_list(&remoteList, repo), git_reference_free(head);
-          git_repository_free(repo); git_libgit2_shutdown();
-          return GP_ERROR_REMOTE_LIST_FAILED);
-
-  // NOTE: Get the number of commits ahead/behind remote.
-  if (remoteList.count) {
-    const git_oid *local = git_reference_target(head);
-
-    // TODO: Is the first entry in the remoteList actually the default as we
-    // assume?
-
-    // NOTE: Construct the full remote name.
-    char remoteName[PATH_LENGTH];
-    strcpy(remoteName, "refs/remotes/");
-    strcat(remoteName, remoteList.strings[0]);
-    strcat(remoteName, "/");
-    strcat(remoteName, branch);
-
-    // NOTE: Use the remote branch name to
-    git_oid upstream;
-    int error = git_reference_name_to_id(&upstream, repo, remoteName);
-
-    if (local && !error) {
-      gpCheck(git_graph_ahead_behind(&counters.ahead, &counters.behind, repo,
-                                     local, &upstream),
-              git_reference_free(head);
-              git_repository_free(repo); git_libgit2_shutdown();
-              return GP_ERROR_AHEAD_BEHIND_FAILED);
+  error = git_repository_head(&head, repo);
+  if (error) {
+    if (GIT_EUNBORNBRANCH == error) {
+      branch = "∅";
+    } else {
+      git_repository_free(repo);
+      git_libgit2_shutdown();
+      return GP_ERROR_GET_REPO_HEAD_FAILED;
     }
+  } else {
+    branch = git_reference_shorthand(head);
   }
 
-  // NOTE: Clean up allocated resources.
-  git_reference_free(head);
+  if (head) {
+    // NOTE: Get a list the possible remote names to determine how far ahead or
+    // behind the local HEAD is.
+    git_strarray remoteList;
+    gpCheck(git_remote_list(&remoteList, repo), git_reference_free(head);
+            git_repository_free(repo); git_libgit2_shutdown();
+            return GP_ERROR_REMOTE_LIST_FAILED);
+
+    // NOTE: Get the number of commits ahead/behind remote.
+    if (remoteList.count) {
+      const git_oid *local = git_reference_target(head);
+
+      // TODO: Is the first entry in the remoteList actually the default as we
+      // assume?
+
+      // NOTE: Construct the full remote name.
+      char remoteName[PATH_LENGTH];
+      strcpy(remoteName, "refs/remotes/");
+      strcat(remoteName, remoteList.strings[0]);
+      strcat(remoteName, "/");
+      strcat(remoteName, branch);
+
+      // NOTE: Use the remote branch name to
+      git_oid upstream;
+      int error = git_reference_name_to_id(&upstream, repo, remoteName);
+
+      if (local && !error) {
+        gpCheck(git_graph_ahead_behind(&counters.ahead, &counters.behind, repo,
+                                       local, &upstream),
+                git_reference_free(head);
+                git_repository_free(repo); git_libgit2_shutdown();
+                return GP_ERROR_AHEAD_BEHIND_FAILED);
+      }
+    }
+
+    // NOTE: Clean up allocated resources.
+    git_reference_free(head);
+  }
   git_repository_free(repo);
   git_libgit2_shutdown();
-
 
   // NOTE: Check for a clean repo
   if (!counters.staged && !counters.changed && !counters.untracked &&
@@ -296,7 +301,7 @@ int main(int argc, char **argv) {
   return GP_SUCCESS;
 }
 
-int parseArgs(int argc, char**argv, gp_tokens *tokens, gp_options *options) {
+int parseArgs(int argc, char **argv, gp_tokens *tokens, gp_options *options) {
   for (int argIndex = 1; argIndex < argc; ++argIndex) {
     if (!strcmp("-h", argv[argIndex]) || !strcmp("--help", argv[argIndex])) {
       printf("Usage: %s <options>\n\n", argv[0]);
@@ -308,7 +313,7 @@ int parseArgs(int argc, char**argv, gp_tokens *tokens, gp_options *options) {
              tokens->prefix, tokens->prefix);
       printf("    suffix \"%s\"        Change the suffix token to '%s'\n",
              tokens->suffix, tokens->suffix);
-      printf("    branch \"%s\"        Change the branch token to '%s'\n",
+      printf("    branch \"%s\"         Change the branch token to '%s'\n",
              tokens->branch, tokens->branch);
       printf("    nohead \"%s\"        Change the nohead token to '%s'\n",
              tokens->nohead, tokens->nohead);
@@ -328,7 +333,7 @@ int parseArgs(int argc, char**argv, gp_tokens *tokens, gp_options *options) {
              tokens->ahead, tokens->ahead);
       printf("    behind \"%s\"        Change the behind token to '%s'\n",
              tokens->behind, tokens->behind);
-      return GP_SUCCESS;
+      return GP_HELP;
     }
     if (!strcmp("--debug", argv[argIndex])) {
       *options |= GP_OPTION_ENABLE_DEBUG_OUTPUT;
@@ -434,6 +439,6 @@ int submoduleCallback(git_submodule *submodule, const char *name,
 }
 
 void printClean(gp_tokens *tokens, const char *branch) {
-  printf("%s%s%s%s%s%s", tokens->prefix, tokens->branch, branch, tokens->separator,
-         tokens->clean, tokens->suffix);
+  printf("%s%s%s%s%s%s", tokens->prefix, tokens->branch, branch,
+         tokens->separator, tokens->clean, tokens->suffix);
 }
