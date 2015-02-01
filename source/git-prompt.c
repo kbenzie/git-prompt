@@ -162,13 +162,13 @@ int main(int argc, char **argv) {
       continue;
     }
 
-    // NOTE: Determine conflict combination, looking at the status in the
-    // debugger seems to imply that if the index and the working tree bits are
-    // set then this means the file is in a conflicted state. Is this correct?
+    // TODO: Find the correct way to determine the entry is in conflict.
+#if GP_EXPERIMENTAL
     if (entry->status & statusIndexMask && entry->status & statusWtMask) {
       counters.conflicts++;
       continue;
     }
+#endif
 
     if (entry->status & statusIndexMask) {
       counters.staged++;
