@@ -8,9 +8,14 @@ without slowing down your shell.
 ## Installation
 
 To install `git-prompt` for use from the command line or, most likely, for
-integration with your terminal prompt, run the CMake `install` target. This will
-add the `git-prompt` executable and the `libgit2` library to the
-`CMAKE_INSTALL_PREFIX` location.
+integration with your terminal prompt run the following commands:
+
+    git clone --recursive https://github.com/kbenzie/git-prompt.git # --recursive is necessary include libgit2 which is a project submodule and dependency.
+    cd git-prompt/
+    cmake install .
+    make
+
+Then simply add `git-prompt` to your `$PATH`.
 
 The ability to compile and link against the system version of `libgit2` has yet
 to be added.
